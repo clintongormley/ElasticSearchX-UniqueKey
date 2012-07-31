@@ -61,9 +61,84 @@ sub update {
         unless defined $new_id and length $new_id;
 
     my ( $type, $old_id ) = @params{ 'type', 'id' };
-    $self->create( $type, $new_id )
-        and $self->delete( $type, $old_id )
-        || carp ("Unique key $type/$old_id not found") && 1;
+    return 1 if $new_id eq $old_id;
+    return unless $self->create( $type, $new_id );
+    $self->delete( $type, $old_id );
+    1;
+
+}
+
+#===================================
+sub multi_create {
+#===================================
+    my ( $self, %keys ) = @_;
+
+    my @docs = map { { type => $_, id => $keys{$_}, data => {} } } keys %keys;
+
+    my %failed;
+    $self->es->bulk_create(
+        index       => $self->index,
+        docs        => \@docs,
+        on_conflict => sub {
+            my ( $action, $doc ) = @_;
+            $failed{ $doc->{type} } = $doc->{id};
+        },
+        on_error => sub {
+            die "Error creating multi unique keys: $_[2]";
+        }
+    );
+    if (%failed) {
+        delete @keys{ keys %failed };
+        $self->multi_delete(%keys);
+    }
+    return %failed;
+}
+
+#===================================
+sub multi_delete {
+#===================================
+    my ( $self, %keys ) = @_;
+
+    my @docs = map { { type => $_, id => $keys{$_} } } keys %keys;
+
+    $self->es->bulk_delete(
+        index    => $self->index,
+        docs     => \@docs,
+        on_error => sub {
+            die "Error deleting multi unique keys: $_[2]";
+        }
+    );
+    return 1;
+}
+
+#===================================
+sub multi_update {
+#===================================
+    my $self = shift;
+    my %old  = %{ shift() || {} };
+    my %new  = %{ shift() || {} };
+    for ( keys %new ) {
+        no warnings 'uninitialized';
+        next unless $old{$_} eq $new{$_};
+        delete $old{$_};
+        delete $new{$_};
+    }
+    my %failed = $self->multi_create(%new);
+    $self->multi_delete(%old) unless %failed;
+    return %failed;
+}
+
+#===================================
+sub multi_exists {
+#===================================
+    my ( $self, %keys ) = @_;
+    my @docs = map { { _type => $_, _id => $keys{$_} } } keys %keys;
+    my $exists = $self->es->mget( index => $self->index, docs => \@docs );
+    for (@$exists) {
+        next unless $_->{exists};
+        delete $keys{ $_->{_type} };
+    }
+    return %keys;
 }
 
 #===================================
@@ -108,7 +183,7 @@ sub bootstrap {
             }
         }
     );
-    $es->cluster_health(wait_for_status=>'yellow');
+    $es->cluster_health( wait_for_status => 'yellow' );
     return $self;
 }
 
@@ -175,6 +250,25 @@ to track multiple unique keys).
     $exists  = $uniq->exists( $key_name, $key_id );
     $updated = $uniq->update( $key_name, $old_id, $new_id );
 
+    %failed  = $uniq->multi_create(
+        $key_name_1 => $key_id_1,
+        $key_name_2 => $key_id_2,
+    );
+
+    $uniq->multi_delete(
+        $key_name_1 => $key_id_1,
+        $key_name_2 => $key_id_2,
+    )
+
+    %failed = $uniq->multi_update(
+        { key_1 => 'old', key_2 => 'old' },
+        { key_1 => 'new', key_2 => 'new' },
+    );
+
+    %failed  = $uniq->multi_exists(
+        $key_name_1 => $key_id_1,
+        $key_name_2 => $key_id_2,
+    );
 
     $uniq->delete_index;
     $uniq->delete_type( $key_name );
@@ -227,8 +321,46 @@ exists or not.
 First tries to create the new combination C<key_name/new_id>, otherwise
 returns false.  Once created, it then tries to delete the
 C<key_name/old_id>, and returns true regardless of whether it existed previously
-or not. It will warn if the old combination didn't exist.
+or not.
 
+=head2 multi_create()
+
+    %failed = $uniq->multi_create(
+        $key_name_1 => $key_id_1,
+        $key_name_2 => $key_id_2,
+    );
+
+Use L</multi_create()> to create several entries at the same time (each
+C<$key_name> must be different).  If it fails to create all the entries,
+then it will remove any entries that it succeeded in creating, and
+return a hash of the entries which failed.
+
+
+=head2 multi_delete()
+
+    $uniq->multi_delete(
+        $key_name_1 => $key_id_1,
+        $key_name_2 => $key_id_2,
+    );
+
+Use L</multi_delete()> to delete several entries at the same time (each
+C<$key_name> must be different).  Returns 1 whether the entries exist or not.
+
+=head2 multi_update()
+
+    %failed = $uniq->multi_update( \%old, \%new );
+
+L</multi_update()> first tries to create the new keys, then deletes the old
+keys. Returns a hash of any entries that couldn't be created.
+
+=head2 multi_delete()
+
+    %failed = $uniq->multi_exists(
+        $key_name_1 => $key_id_1,
+        $key_name_2 => $key_id_2,
+    );
+
+Returns a hash of any entries that don't exist.
 
 =head2 bootstrap()
 
