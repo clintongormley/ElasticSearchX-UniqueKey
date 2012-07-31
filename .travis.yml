@@ -5,14 +5,9 @@ perl:
   - "5.12"
 env: PERL_CPANM_OPT="--mirror http://cpan.mirrors.travis-ci.org  --mirror http://cpan.cpantesters.org/ --mirror http://search.cpan.org/CPAN --cascade-search --notest --force --skip-satisfied" 
 before_install:
-  - export OLD_DIR=`pwd`
-  - cd /tmp
-  - curl -L -O https://github.com/downloads/elasticsearch/elasticsearch/elasticsearch-0.19.8.tar.gz
-  - tar -xzf elasticsearch-0.19.8.tar.gz
-  - elasticsearch-0.19.8/bin/elasticsearch
-  - export ES_HOME='/tmp/elasticsearch-0.19.8'
-  - cd $OLD_DIR
+  - curl -L  https://github.com/downloads/elasticsearch/elasticsearch/elasticsearch-0.19.8.tar.gz | tar -xz
+  - export ES_HOME='./elasticsearch-0.19.8'
   - "cpanm Dist::Zilla"
   - "dzil authordeps | cpanm"
 install: "dzil listdeps | xargs cpanm"
-script: "ES_HOME=dzil test --release"
+script: "dzil test --release"
