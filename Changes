@@ -1,3 +1,6 @@
+0.03    2012-07-31
+        Added multi_create(), multi_delete(), multi_exists() and multi_update()
+
 0.02    2012-07-31
         Renamed Changes.txt to Changes
 
