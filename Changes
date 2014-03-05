@@ -1,3 +1,6 @@
+0.04    2014-03-05
+        Added support for Search::Elasticsearch::Compat
+
 0.03    2012-07-31
         Added multi_create(), multi_delete(), multi_exists() and multi_update()
 
