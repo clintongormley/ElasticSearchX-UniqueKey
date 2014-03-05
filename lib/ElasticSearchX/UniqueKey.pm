@@ -31,7 +31,9 @@ sub create {
         1;
     }
         && return 1;
-    return 0 if $@->isa('ElasticSearch::Error::Conflict');
+    return 0
+        if $@->isa('Search::Elasticsearch::Error::Conflict')
+        || $@->isa('ElasticSearch::Error::Conflict');
     croak $@;
 }
 
@@ -222,7 +224,7 @@ sub delete_index {
 
 =head1 DESCRIPTION
 
-The only unique key available in ElasticSearch is the document ID. Typically,
+The only unique key available in Elasticsearch is the document ID. Typically,
 if you want a document to be unique, you use the unique value as the ID.
 However, sometimes you don't want to do this. For instance, you may want
 to use the email address as a unique identifier for your user accounts, but
@@ -237,10 +239,10 @@ to track multiple unique keys).
 
 =head1 SYNOPSIS
 
-    use ElasticSearch();
+    use Search::Elasticsearch::Compat();
     use ElasticSearchX::UniqueKey();
 
-    my $es   = ElasticSearch->new();
+    my $es   = Search::Elasticsearch::Compat->new();
     my $uniq = ElasticSearchX::UniqueKey->new( es => $es );
 
     $uniq->bootstrap();
@@ -278,7 +280,7 @@ to track multiple unique keys).
 =head2 new()
 
     my uniq = ElasticSearchX::UniqueKey->new(
-        es      => $es,         # ElasticSearch instance, required
+        es      => $es,         # Search::Elasticsearch::Compat instance, required
         index   => 'index',     # defaults to 'unique_key',
     );
 
@@ -375,12 +377,12 @@ By default, the index is setup with the following C<%settings>:
     )
 
 In other words, it will have only a single primary shard (instead of the
-ElasticSearch default of 5), and a replica of that shard on every ElasticSearch
+Elasticsearch default of 5), and a replica of that shard on every Elasticsearch
 node in your cluster.
 
 If you pass in any C<%settings> then the defaults will not be used at all.
 
-See L<Index Settings|http://www.elasticsearch.org/guide/reference/api/admin-indices-update-settings.html> for more.
+See L<Index Settings|http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-update-settings.html> for more.
 
 =head2 delete_index()
 
@@ -404,13 +406,13 @@ Read-only getter for the index value
 
     $es = $uniq->es
 
-Read-only getter for the ElasticSearch instance.
+Read-only getter for the Search::Elasticsearch::Compat instance.
 
 =head1 SEE ALSO
 
 =over
 
-=item L<ElasticSearch>
+=item L<Search::Elasticsearch::Compat>
 
 =item L<Elastic::Model>
 
@@ -430,7 +432,7 @@ your bug as I make changes.
 
 =head1 TEST SUITE
 
-The full test suite requires a live ElasticSearch cluster to run.  CPAN
+The full test suite requires a live Elasticsearch cluster to run.  CPAN
 testers doesn't support this.  You can see full test results here:
 L<http://travis-ci.org/#!/clintongormley/ElasticSearchX-UniqueKey/builds>.
 

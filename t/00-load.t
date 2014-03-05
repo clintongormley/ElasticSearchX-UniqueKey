@@ -3,8 +3,8 @@
 use Test::More 0.96;
 use Test::Exception;
 use Test::Deep;
-use ElasticSearch 0.55;
-use ElasticSearch::TestServer;
+use Search::Elasticsearch::Compat 0.10;
+use Search::Elasticsearch::TestServer;
 
 BEGIN {
     use_ok('ElasticSearchX::UniqueKey') || print "Bail out!";
@@ -15,22 +15,25 @@ diag(
     "Testing ElasticSearchX::UniqueKey $ElasticSearchX::UniqueKey::VERSION, Perl $], $^X"
 );
 
-our $es = eval {
-    ElasticSearch::TestServer->new(
-        instances   => 1,
-        transport   => 'http',
-        trace_calls => 'log'
-    );
-};
+my $test_server = Search::Elasticsearch::TestServer->new(
+    instances => 1,
+    es_home   => $ENV{ES_HOME}
+);
+my $nodes = $test_server->start;
 
-if ($es) {
-    run_test_suite();
-    note "Shutting down servers";
-    $es->_shutdown_servers;
-}
-else {
-    diag $_ for split /\n/, $@;
-}
+our $es = Search::Elasticsearch::Compat->new(
+    servers => $nodes,
+
+    #[ 'localhost:9200', 'localhost:9201', 'localhost:9202' ],
+    trace_calls => 'log'
+);
+
+run_test_suite();
+note "Shutting down servers";
+note "Shutting down servers";
+
+$test_server->shutdown();
+
 done_testing;
 
 sub run_test_suite {
